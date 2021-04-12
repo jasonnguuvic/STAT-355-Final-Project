@@ -12,29 +12,6 @@ indent: no
 geometry: left=1.5cm,right=1.5cm,top=2cm,bottom=3cm
 fontsize: 11pt
 ---
-#abc Setting up Google Drive
-
-
-Instructions: https://github.com/ekothe/trackdown
-
-
-Install the remotes packages and run the code provided to you in the above link. Doing this allows you to update and/or download the shared document. ALWAYS SAVE YOUR R MARKDOWN FILE BEFORE UPDATING THE DRIVE
-```{r Download Drive}
-"Run this chunk. If it doesn't work,copy and paste the code into your console and run."
-library(trackdown)
-download_rmd(file = "STAT 355 Final Project", 
-             gfile = "STAT 355 Final Project")
-```
-
-
-```{r Update Drive}
-"Run this chunk. If it doesn't work,copy and paste the code into your console and run."
-library(trackdown)
-update_rmd(file = "STAT 355 Final Project", 
-           gfile = "STAT 355 Final Project")
-```
-
-
 #Data
 ```{r Summary}
 library(dplyr)
@@ -256,6 +233,4 @@ ggplot(NNdf, aes(x=PredictorVariables, y=NNMODEL, ymin=lower, ymax=upper)) +
   geom_pointrange() + 
   geom_hline(yintercept=1, linetype=2)+
   coord_flip()
-
-
 ```
