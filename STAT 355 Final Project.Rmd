@@ -1,0 +1,261 @@
+﻿---
+title: "STAT 355 Final Project"
+author: "Hillary Beauvais, Kossivi Denanyoh, Brook Foli, & Jason Nguyen "
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+graphics: yes
+indent: no
+geometry: left=1.5cm,right=1.5cm,top=2cm,bottom=3cm
+fontsize: 11pt
+---
+#abc Setting up Google Drive
+
+
+Instructions: https://github.com/ekothe/trackdown
+
+
+Install the remotes packages and run the code provided to you in the above link. Doing this allows you to update and/or download the shared document. ALWAYS SAVE YOUR R MARKDOWN FILE BEFORE UPDATING THE DRIVE
+```{r Download Drive}
+"Run this chunk. If it doesn't work,copy and paste the code into your console and run."
+library(trackdown)
+download_rmd(file = "STAT 355 Final Project", 
+             gfile = "STAT 355 Final Project")
+```
+
+
+```{r Update Drive}
+"Run this chunk. If it doesn't work,copy and paste the code into your console and run."
+library(trackdown)
+update_rmd(file = "STAT 355 Final Project", 
+           gfile = "STAT 355 Final Project")
+```
+
+
+#Data
+```{r Summary}
+library(dplyr)
+library(ggplot2)
+library(nnet)
+
+
+SData <- read.csv("healthcare-dataset-stroke-data.csv",stringsAsFactors = T)
+dim(SData)
+str(SData)
+summary(SData)
+
+
+#note: I added "stringasfactor = T". This will allow us to see how many participants are in each category in summary table. For example, now we can see that there are 2994 females, 2115 males, and 1 other in gender variable. We can also now see how participants are split up in ever_married, work_type, residence_type. BMI and smoking_status.
+
+
+#Data is 5510 x 12 matrix. 5510 observations (people) & 11 (Exclude id because that's useless). 10 predictor variables and 1 outcome variable. Linear regression and logistic regression will be used. Some sort of figures should be produce (plot for models?)
+
+
+SData <- within(SData, {bmiN <- as.numeric(as.character(SData$bmi))
+                        smoking_status <- factor(smoking_status, levels = c("never smoked", "formerly smoked", "smokes", "Unknown"))
+                      })
+#Changed bmi into num
+#Relevelled smoking status so that Never Smoked is base level
+```
+#Models & Plots
+```{r Histograms & Plots}
+HYPER <- SData %>%
+  group_by(hypertension) %>%
+  summarise(Proportion = round(mean(stroke),3))
+HYPER
+ggplot(HYPER, aes(x = hypertension, y = Proportion )) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Proportion), vjust = -0.1) +
+  labs(x = "Hypertension")
+
+
+HEART <- SData %>%
+  group_by(heart_disease) %>%
+  summarise(Proportion = round(mean(stroke),3))
+HEART
+ggplot(HEART, aes(x = heart_disease, y = Proportion )) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Proportion), vjust = -0.1) +
+  labs(x = "Heart Disease")
+
+
+marriage <- SData %>%
+  group_by(ever_married) %>%
+  summarise(Proportion = round(mean(stroke),3))
+marriage
+ggplot(marriage, aes(x = ever_married, y = Proportion )) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Proportion), vjust = -0.1) +
+  labs(x = "Marriage Status")
+
+
+smoke <- SData %>%
+  group_by(smoking_status) %>%
+  summarise(Proportion = round(mean(stroke),3))
+smoke
+ggplot(smoke, aes(x = smoking_status, y = Proportion )) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Proportion), vjust = -0.1) +
+  labs(x = "Smoking Status")
+
+
+ggplot(data=SData)+geom_bar(aes(x=hypertension,fill=as.factor(stroke)))# hypertension graph age vs stroke
+ggplot(data=SData)+geom_bar(aes(x=work_type,fill=as.factor(stroke)))#work_type vs stroke
+```
+
+
+```{r Boxplots}
+boxplot(age~stroke,data=SData, ylab='Age',
+  xlab='Stroke Outcome',main='Age distribution by Stroke Outcome')
+boxplot(avg_glucose_level~stroke,data=SData, ylab='Average Glucose Level',
+  xlab='Stroke Outcome',main='Average Glucose Level distribution by Stroke Outcome')
+boxplot(bmiN~stroke,data=SData, ylab='BMI',
+  xlab='Stroke Outcome',main='BMI distribution by Stroke Outcome')
+
+
+#boxplots shows us outliers for each continuous variable. If the median line (bold centered lines in box) is symmetrical within the interquartile range, we can assume that data is normally distributed and not skewed. Also observing the upward and downward shifts between the boxplots is useful. For example, in the age vs stroke outcome boxplot, the IQR for stroke = 0 is shifted downwards, compared to the IQR for stroke = 1 which is shifted upwards. This suggest that on average, most people who experience a stroke (stroke = 1) will be older.
+```
+
+
+```{r General Univariable Model}
+lapply(c("gender","age","hypertension","heart_disease","ever_married","work_type","Residence_type","avg_glucose_level", "bmiN", "smoking_status"),
+       function(var) {
+           formula    <- as.formula(paste("stroke ~", var))
+           glm <- glm(formula, family = binomial, data = SData)
+           
+           summary(glm)
+       })
+#Applied logistic regression to each variable. P-value will inform us on if the variable is significant enough to use in later models
+#Exclude gender and residence type because they aren't significant.
+#work_typeNever_Worked & ever_marriedNo populations have no relations with the stroke population because they're children... We already know that age is correlative with stroke. Age is a confounding variable.
+```
+
+
+```{r Smoking Status glm and plot}
+smoketype <- glm(stroke ~ smoking_status, family = binomial, data = SData)
+smokeOR <- exp(coef(smoketype))
+smokeOR
+
+
+SmokingStatus <- factor(1:3,labels=c("Formerly Smoked", "Smokes","Unknown"))
+SMOKE <- c(1.71, 1.12, 0.62)
+upper <- c(0, 0, 0)
+lower <- c(0, 0, 0)
+
+
+df <- data.frame(SmokingStatus,SMOKE,upper,lower)
+
+
+ggplot(df, aes(x=SmokingStatus, y=SMOKE, ymin=lower, ymax=upper)) + 
+  geom_pointrange() + 
+  geom_hline(yintercept=1, linetype=2)+
+  coord_flip() 
+```
+
+
+```{r Work Type}
+work <- SData %>%
+  group_by(work_type) %>%
+  summarise(Proportion = round(mean(stroke),3))
+work
+ggplot(work, aes(x = work_type, y = Proportion )) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Proportion), vjust = -0.1) +
+  labs(x = "Work Type")
+
+
+worktype <- glm(stroke ~ work_type, family = binomial, data = SData)
+workOR <- exp(coef(worktype))
+workOR
+
+
+WorkType <- factor(1:4,labels=c("Government Job", "Never Worked", "Private", "Self Employed"))
+WORK <- c(18.11, 0.000059, 13.38, 29.52)
+upper <- c(0, 0, 0, 0)
+lower <- c(0, 0, 0, 0)
+
+
+df <- data.frame(WorkType,WORK,upper,lower)
+ggplot(df, aes(x=WorkType, y=WORK, ymin=lower, ymax=upper)) + 
+  geom_pointrange() + 
+  geom_hline(yintercept=1, linetype=2)+
+  coord_flip() 
+```
+
+
+```{r Numerical Variables: Age, Glucose, & BMI Figures}
+#create general linear model for Age variable
+ageglm <- glm(stroke ~ age, family = binomial, data = SData)
+ageglm
+
+
+#Find range of Age
+range(SData$age)
+
+
+#Line for probability of stroke
+xage <- seq(0,90, 0.01)
+yage <- predict(ageglm, 
+                   list(age = xage), type = "response")
+
+
+#plot model and line
+plot(SData$age, SData$stroke, pch = 20, xlab = "Age (years)", ylab = "Stroke")
+lines(xage, yage)
+
+
+#repeat for average glucose level
+glucoseglm <- glm(stroke ~ avg_glucose_level, family = binomial,  data = SData)
+glucoseglm
+range(SData$avg_glucose_level)
+xglucose <- seq(50, 280, 0.01)
+yglucose <- predict(glucoseglm, 
+                   list(avg_glucose_level = xglucose),type="response")
+
+
+plot(SData$avg_glucose_level, SData$stroke, pch = 20, xlab = "Average Glucose Level", ylab = "Stroke")
+lines(xglucose, yglucose)
+
+
+#repeat for bmiN
+bmiNglm <- glm(stroke ~ bmiN, family = binomial, data = SData)
+bmiNglm
+range(SData$bmiN)
+xbmiN<- seq(0, 420, 0.01)
+ybmiN <- predict(bmiNglm, 
+                   list(bmiN = xbmiN),type="response")
+
+
+plot(SData$bmiN, SData$stroke, pch = 20, xlab = "BMI", ylab = "Stroke")
+lines(xbmiN, ybmiN)
+```
+
+
+```{r Non-Numerical Variable Model & Plot}
+NNmodel <- multinom(stroke ~  hypertension + heart_disease + ever_married + work_type + smoking_status,  data = SData)
+summary(NNmodel)
+
+
+NNOR <- exp(coef(NNmodel))
+NNOR
+
+
+PredictorVariables <- factor(1:10,labels=c("Hypertension", "Heart Disease","Marriage", "Government Job", "Never Worked", "Private Work", "Self-employed", "Formerly Smoked","Smokes","Unknown"))
+NNMODEL <- c(2.56, 3.18, 2.12, 7.4, 0.05, 7.87, 9.86, 1.46, 1.02, 1.12 )
+upper <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+lower <- c(0, 0, 0, 0, 0, 0, 0, 0, 0 ,0)
+
+
+NNdf <- data.frame(PredictorVariables,NNMODEL,upper,lower)
+
+
+ggplot(NNdf, aes(x=PredictorVariables, y=NNMODEL, ymin=lower, ymax=upper)) + 
+  geom_pointrange() + 
+  geom_hline(yintercept=1, linetype=2)+
+  coord_flip()
+
+
+```
